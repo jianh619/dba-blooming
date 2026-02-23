@@ -7,7 +7,46 @@ import (
 	"github.com/luckyjian/pgdba/internal/config"
 )
 
+// pgdbaEnvVars lists every environment variable that config.Load reads,
+// so TestDefaultValues can save/restore them to ensure test isolation.
+var pgdbaEnvVars = []string{
+	"PGDBA_PG_HOST",
+	"PGDBA_PG_PORT",
+	"PGDBA_PG_USER",
+	"PGDBA_PG_DATABASE",
+	"PGDBA_PG_SSLMODE",
+	"PGDBA_PG_PASSWORD",
+	"PGDBA_PROVIDER_TYPE",
+	"PGDBA_CLUSTER_NAME",
+	"PGDBA_MONITOR_PROMETHEUS_URL",
+	"PGDBA_MONITOR_GRAFANA_URL",
+}
+
+// clearPGDBAEnv saves all PGDBA_* environment variables and unsets them.
+// The returned function restores the original values; call it with defer.
+func clearPGDBAEnv(t *testing.T) func() {
+	t.Helper()
+	saved := make(map[string]string, len(pgdbaEnvVars))
+	for _, k := range pgdbaEnvVars {
+		if v, ok := os.LookupEnv(k); ok {
+			saved[k] = v
+		}
+		os.Unsetenv(k)
+	}
+	return func() {
+		for _, k := range pgdbaEnvVars {
+			if v, ok := saved[k]; ok {
+				os.Setenv(k, v)
+			} else {
+				os.Unsetenv(k)
+			}
+		}
+	}
+}
+
 func TestDefaultValues(t *testing.T) {
+	defer clearPGDBAEnv(t)()
+
 	cfg, err := config.Load("")
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
