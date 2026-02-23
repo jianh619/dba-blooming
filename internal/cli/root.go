@@ -19,6 +19,10 @@ func NewRootCmd() *cobra.Command {
 		provider string
 	)
 
+	// cfg is a shared pointer populated in PersistentPreRunE before any
+	// subcommand runs, ensuring environment variables and config file are loaded.
+	cfg := &config.Config{}
+
 	root := &cobra.Command{
 		Use:   "pgdba",
 		Short: "PostgreSQL virtual DBA expert system",
@@ -33,6 +37,13 @@ func NewRootCmd() *cobra.Command {
 					"invalid format %q: must be json, table, or yaml", format,
 				)
 			}
+			loaded, err := config.Load(cfgFile)
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+			*cfg = *loaded
+			_ = verbose
+			_ = provider
 			return nil
 		},
 	}
@@ -42,8 +53,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose logging")
 	root.PersistentFlags().StringVar(&provider, "provider", "docker", "Infrastructure provider: docker|baremetal|kubernetes")
 
-	// Attach sub-commands with a lazily-initialized default config.
-	root.AddCommand(newHealthCmd(&config.Config{}, &format))
+	root.AddCommand(newHealthCmd(cfg, &format))
 
 	return root
 }
