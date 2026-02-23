@@ -6,12 +6,27 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/luckyjian/pgdba/internal/cluster"
 	"github.com/luckyjian/pgdba/internal/config"
 	"github.com/luckyjian/pgdba/internal/output"
 )
 
 // NewRootCmd builds and returns the root cobra.Command for the pgdba CLI.
+// It uses the default cluster registry (~/.pgdba/clusters.json).
 func NewRootCmd() *cobra.Command {
+	reg, _ := cluster.DefaultRegistry()
+	return buildRootCmd(reg)
+}
+
+// NewRootCmdWithRegistry returns the root command using a custom registry path.
+// This is used in tests to inject a temporary registry file.
+func NewRootCmdWithRegistry(registryPath string) *cobra.Command {
+	reg := cluster.NewRegistry(registryPath)
+	return buildRootCmd(reg)
+}
+
+// buildRootCmd constructs the cobra command tree given a cluster registry.
+func buildRootCmd(reg *cluster.Registry) *cobra.Command {
 	var (
 		cfgFile  string
 		format   output.Format
@@ -54,6 +69,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().StringVar(&provider, "provider", "docker", "Infrastructure provider: docker|baremetal|kubernetes")
 
 	root.AddCommand(newHealthCmd(cfg, &format))
+	root.AddCommand(newClusterCmd(cfg, &format, reg))
 
 	return root
 }

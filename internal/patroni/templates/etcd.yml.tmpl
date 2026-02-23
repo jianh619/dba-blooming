@@ -1,0 +1,9 @@
+name: {{ .NodeName }}
+data-dir: {{ .DataDir }}/etcd
+initial-advertise-peer-urls: http://{{ .Host }}:2380
+listen-peer-urls: http://0.0.0.0:2380
+listen-client-urls: http://0.0.0.0:2379
+advertise-client-urls: http://{{ .Host }}:2379
+initial-cluster-token: etcd-cluster-{{ .ClusterName }}
+initial-cluster: {{ .InitialCluster }}
+initial-cluster-state: new
