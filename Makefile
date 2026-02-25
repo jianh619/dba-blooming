@@ -1,4 +1,4 @@
-.PHONY: build test test-unit coverage lint clean
+.PHONY: build test test-unit test-e2e coverage lint clean
 
 BINARY_NAME=pgdba
 BUILD_DIR=bin
@@ -11,6 +11,9 @@ test:
 
 test-unit:
 	go test ./tests/unit/... -v -race
+
+test-e2e: build
+	go test ./tests/e2e/... -v -timeout 60s
 
 coverage:
 	go test ./tests/unit/... -coverprofile=coverage.out -covermode=atomic \

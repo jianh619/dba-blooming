@@ -44,13 +44,22 @@ func buildRootCmd(reg *cluster.Registry) *cobra.Command {
 		Long: "pgdba provides a full suite of PostgreSQL DBA operations — high-availability " +
 			"deployment, failover, backup/restore, monitoring, and tuning — all outputting " +
 			"AI-parseable JSON.",
+		// SilenceUsage prevents cobra from appending the usage block after every
+		// RunE error. SilenceErrors suppresses the duplicate "Error: ..." line.
+		// Commands write structured JSON errors themselves via writeFailure.
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			switch format {
 			case output.FormatJSON, output.FormatTable, output.FormatYAML:
 			default:
-				return fmt.Errorf(
-					"invalid format %q: must be json, table, or yaml", format,
-				)
+				err := fmt.Errorf("invalid format %q: must be json, table, or yaml", format)
+				// Fall back to JSON since the requested format is itself invalid.
+				resp := output.Failure(cmd.CommandPath(), err)
+				if out, fmtErr := output.FormatResponse(resp, output.FormatJSON); fmtErr == nil {
+					fmt.Fprintln(cmd.ErrOrStderr(), out)
+				}
+				return err
 			}
 			loaded, err := config.Load(cfgFile)
 			if err != nil {
@@ -70,6 +79,8 @@ func buildRootCmd(reg *cluster.Registry) *cobra.Command {
 
 	root.AddCommand(newHealthCmd(cfg, &format))
 	root.AddCommand(newClusterCmd(cfg, &format, reg))
+	root.AddCommand(newFailoverCmd(&format, reg))
+	root.AddCommand(newReplicaCmd(&format, reg))
 
 	return root
 }
