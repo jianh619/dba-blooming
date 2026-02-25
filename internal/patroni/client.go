@@ -14,9 +14,10 @@ import (
 type NodeState string
 
 const (
-	StateRunning  NodeState = "running"
-	StateStopped  NodeState = "stopped"
-	StateCreating NodeState = "creating replica"
+	StateRunning   NodeState = "running"
+	StateStreaming NodeState = "streaming" // replica actively streaming WAL from primary
+	StateStopped   NodeState = "stopped"
+	StateCreating  NodeState = "creating replica"
 )
 
 // Member represents a single cluster member node.

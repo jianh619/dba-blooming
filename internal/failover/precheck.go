@@ -24,15 +24,21 @@ func FindPrimary(cs *patroni.ClusterStatus) (string, error) {
 	return "", fmt.Errorf("no primary found in cluster (members: %d)", len(cs.Members))
 }
 
-// FindBestCandidate returns the running replica with the lowest replication lag.
-// Returns an error if no running replica is available.
+// isReplicaHealthy reports whether a node state is healthy for a replica.
+// Both "running" and "streaming" are normal operational states for replicas.
+func isReplicaHealthy(state patroni.NodeState) bool {
+	return state == patroni.StateRunning || state == patroni.StateStreaming
+}
+
+// FindBestCandidate returns the healthy replica with the lowest replication lag.
+// Returns an error if no healthy replica is available.
 func FindBestCandidate(cs *patroni.ClusterStatus) (string, error) {
 	var best *patroni.Member
 	for i, m := range cs.Members {
 		if m.Role == "leader" || m.Role == "master" {
 			continue
 		}
-		if m.State != patroni.StateRunning {
+		if !isReplicaHealthy(m.State) {
 			continue
 		}
 		if best == nil || m.Lag < best.Lag {
@@ -61,9 +67,9 @@ func CheckSwitchover(cs *patroni.ClusterStatus, candidate string, maxLagBytes in
 		return validateCandidate(cs, candidate, maxLagBytes)
 	}
 
-	// No candidate specified: ensure at least one running replica exists.
+	// No candidate specified: ensure at least one healthy replica exists.
 	for _, m := range cs.Members {
-		if m.Role != "leader" && m.Role != "master" && m.State == patroni.StateRunning {
+		if m.Role != "leader" && m.Role != "master" && isReplicaHealthy(m.State) {
 			return nil
 		}
 	}
@@ -79,8 +85,8 @@ func validateCandidate(cs *patroni.ClusterStatus, candidate string, maxLagBytes 
 		if m.Role == "leader" || m.Role == "master" {
 			return fmt.Errorf("candidate %q is already the primary", candidate)
 		}
-		if m.State != patroni.StateRunning {
-			return fmt.Errorf("candidate %q is not running (state: %s)", candidate, m.State)
+		if !isReplicaHealthy(m.State) {
+			return fmt.Errorf("candidate %q is not healthy (state: %s)", candidate, m.State)
 		}
 		if m.Lag > maxLagBytes {
 			return fmt.Errorf("candidate %q replication lag %d bytes exceeds threshold %d bytes",

@@ -250,12 +250,12 @@ func buildStatusResult(name string, cs *patroni.ClusterStatus) *ClusterStatusRes
 			Port:  m.Port,
 			Lag:   m.Lag,
 		})
-		if m.Role == "master" || m.Role == "primary" {
+		if m.Role == "leader" || m.Role == "master" || m.Role == "primary" {
 			result.Primary = m.Name
 		} else {
 			result.ReplicaCount++
 		}
-		if m.State != patroni.StateRunning {
+		if m.State != patroni.StateRunning && m.State != patroni.StateStreaming {
 			result.Healthy = false
 		}
 	}
