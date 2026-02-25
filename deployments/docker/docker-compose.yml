@@ -13,6 +13,8 @@ services:
       ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: pgdba-etcd-cluster
+    volumes:
+      - etcd1-data:/etcd-data
     networks: [pgdba-net]
 
   etcd2:
@@ -27,6 +29,8 @@ services:
       ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: pgdba-etcd-cluster
+    volumes:
+      - etcd2-data:/etcd-data
     networks: [pgdba-net]
 
   etcd3:
@@ -41,84 +45,80 @@ services:
       ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: pgdba-etcd-cluster
+    volumes:
+      - etcd3-data:/etcd-data
     networks: [pgdba-net]
 
   pg-primary:
-    image: patroni-pg:16
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    hostname: pg-primary
     environment:
-      PATRONI_NAME: pg-primary
-      PATRONI_SCOPE: pgdba-cluster
-      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
-      PATRONI_RESTAPI_CONNECT_ADDRESS: pg-primary:8008
-      PATRONI_ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
-      PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
-      PATRONI_POSTGRESQL_CONNECT_ADDRESS: pg-primary:5432
+      SCOPE: pgdba-cluster
+      ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
+      PGPASSWORD_SUPERUSER: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      PGPASSWORD_STANDBY: ${REPLICATION_PASSWORD:?REPLICATION_PASSWORD must be set in .env}
       PATRONI_SUPERUSER_USERNAME: postgres
-      PATRONI_SUPERUSER_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       PATRONI_REPLICATION_USERNAME: replicator
-      PATRONI_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicatorpass}
     ports:
-      - "5432:5432"
-      - "8008:8008"
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:8008:8008"
     depends_on: [etcd1, etcd2, etcd3]
     networks: [pgdba-net]
 
   pg-replica-1:
-    image: patroni-pg:16
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    hostname: pg-replica-1
     environment:
-      PATRONI_NAME: pg-replica-1
-      PATRONI_SCOPE: pgdba-cluster
-      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
-      PATRONI_RESTAPI_CONNECT_ADDRESS: pg-replica-1:8008
-      PATRONI_ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
-      PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
-      PATRONI_POSTGRESQL_CONNECT_ADDRESS: pg-replica-1:5432
+      SCOPE: pgdba-cluster
+      ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
+      PGPASSWORD_SUPERUSER: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      PGPASSWORD_STANDBY: ${REPLICATION_PASSWORD:?REPLICATION_PASSWORD must be set in .env}
       PATRONI_SUPERUSER_USERNAME: postgres
-      PATRONI_SUPERUSER_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       PATRONI_REPLICATION_USERNAME: replicator
-      PATRONI_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicatorpass}
     ports:
-      - "5433:5432"
-      - "8009:8008"
+      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:8009:8008"
     depends_on: [pg-primary]
     networks: [pgdba-net]
 
   pg-replica-2:
-    image: patroni-pg:16
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    hostname: pg-replica-2
     environment:
-      PATRONI_NAME: pg-replica-2
-      PATRONI_SCOPE: pgdba-cluster
-      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
-      PATRONI_RESTAPI_CONNECT_ADDRESS: pg-replica-2:8008
-      PATRONI_ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
-      PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
-      PATRONI_POSTGRESQL_CONNECT_ADDRESS: pg-replica-2:5432
+      SCOPE: pgdba-cluster
+      ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
+      PGPASSWORD_SUPERUSER: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      PGPASSWORD_STANDBY: ${REPLICATION_PASSWORD:?REPLICATION_PASSWORD must be set in .env}
       PATRONI_SUPERUSER_USERNAME: postgres
-      PATRONI_SUPERUSER_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       PATRONI_REPLICATION_USERNAME: replicator
-      PATRONI_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicatorpass}
     ports:
-      - "5434:5432"
-      - "8010:8008"
+      - "127.0.0.1:5434:5432"
+      - "127.0.0.1:8010:8008"
     depends_on: [pg-primary]
     networks: [pgdba-net]
 
   pgbouncer:
-    image: pgbouncer/pgbouncer:1.22
+    image: edoburu/pgbouncer:v1.25.1-p0
     environment:
-      DATABASES_HOST: pg-primary
-      DATABASES_PORT: 5432
-      DATABASES_DBNAME: postgres
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 1000
-      PGBOUNCER_DEFAULT_POOL_SIZE: 20
-      POSTGRESQL_USERNAME: postgres
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_HOST: pg-primary
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256
     ports:
-      - "6432:6432"
+      - "127.0.0.1:6432:6432"
     depends_on: [pg-primary]
     networks: [pgdba-net]
 
 networks:
   pgdba-net:
     driver: bridge
+
+volumes:
+  etcd1-data:
+  etcd2-data:
+  etcd3-data:

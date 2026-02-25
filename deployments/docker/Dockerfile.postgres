@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     patroni-etcd \
     && rm -rf /var/lib/apt/lists/*
 
-COPY deployments/docker/patroni-entrypoint.sh /entrypoint.sh
+COPY patroni-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 5432 8008

@@ -1,8 +1,29 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Generate Patroni configuration from environment variables.
-# Passwords are never hardcoded; they are injected at runtime via environment.
+# Validate all required environment variables before generating any config.
+# Unset variables expand silently to empty strings without this guard,
+# which would produce a Patroni config with empty passwords.
+required_vars=(
+  PATRONI_SCOPE
+  PATRONI_NAME
+  PATRONI_RESTAPI_CONNECT_ADDRESS
+  PATRONI_ETCD3_HOSTS
+  PATRONI_REPLICATION_PASSWORD
+  PATRONI_SUPERUSER_PASSWORD
+)
+for var in "${required_vars[@]}"; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "ERROR: required environment variable '${var}' is not set" >&2
+    exit 1
+  fi
+done
+
+# Create the config file with restrictive permissions (0600) before writing
+# any content, so passwords are never visible to other processes even
+# momentarily during the heredoc write.
+install -m 0600 /dev/null /etc/patroni.yml
+
 cat > /etc/patroni.yml << EOF
 scope: ${PATRONI_SCOPE}
 name: ${PATRONI_NAME}
@@ -34,8 +55,8 @@ bootstrap:
     - data-checksums
 
   pg_hba:
-    - host replication replicator 0.0.0.0/0 md5
-    - host all all 0.0.0.0/0 md5
+    - host replication replicator 172.16.0.0/12 scram-sha-256
+    - host all all 172.16.0.0/12 scram-sha-256
 
 postgresql:
   listen: ${PATRONI_POSTGRESQL_LISTEN:-0.0.0.0:5432}
