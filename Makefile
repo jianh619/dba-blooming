@@ -1,4 +1,4 @@
-.PHONY: build test test-unit test-e2e coverage lint clean
+.PHONY: build test test-unit test-e2e test-integration coverage lint clean
 
 BINARY_NAME=pgdba
 BUILD_DIR=bin
@@ -14,6 +14,11 @@ test-unit:
 
 test-e2e: build
 	go test ./tests/e2e/... -v -timeout 60s
+
+# Requires a running Docker Compose cluster (deployments/docker/).
+# Exercises all pgdba features against the real Patroni API.
+test-integration: build
+	go test -tags integration ./tests/integration/... -v -timeout 120s
 
 coverage:
 	go test ./tests/unit/... -coverprofile=coverage.out -covermode=atomic \

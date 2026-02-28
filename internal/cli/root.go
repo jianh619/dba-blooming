@@ -81,6 +81,10 @@ func buildRootCmd(reg *cluster.Registry) *cobra.Command {
 	root.AddCommand(newClusterCmd(cfg, &format, reg))
 	root.AddCommand(newFailoverCmd(&format, reg))
 	root.AddCommand(newReplicaCmd(&format, reg))
+	root.AddCommand(newInspectCmd(cfg, &format, reg))
+	root.AddCommand(newConfigCmd(cfg, &format, reg))
+	root.AddCommand(newQueryCmd(cfg, &format, reg))
+	root.AddCommand(newBaselineCmd(cfg, &format, reg))
 
 	return root
 }

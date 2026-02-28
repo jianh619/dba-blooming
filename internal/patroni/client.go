@@ -32,6 +32,42 @@ type Member struct {
 	APIURL   string    `json:"api_url"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler to handle Patroni's inconsistent
+// lag field, which can be an integer or a string (e.g. "unknown") immediately
+// after a switchover while nodes reconnect as replicas. Non-numeric strings
+// are treated as 0 (unknown lag).
+func (m *Member) UnmarshalJSON(data []byte) error {
+	type memberAlias struct {
+		Name     string          `json:"name"`
+		Host     string          `json:"host"`
+		Port     int             `json:"port"`
+		Role     string          `json:"role"`
+		State    NodeState       `json:"state"`
+		Lag      json.RawMessage `json:"lag"`
+		Timeline int64           `json:"timeline"`
+		APIURL   string          `json:"api_url"`
+	}
+	var raw memberAlias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Name = raw.Name
+	m.Host = raw.Host
+	m.Port = raw.Port
+	m.Role = raw.Role
+	m.State = raw.State
+	m.Timeline = raw.Timeline
+	m.APIURL = raw.APIURL
+
+	if len(raw.Lag) > 0 {
+		if err := json.Unmarshal(raw.Lag, &m.Lag); err != nil {
+			// Non-numeric lag (e.g. "unknown") — treat as 0.
+			m.Lag = 0
+		}
+	}
+	return nil
+}
+
 // ClusterStatus holds the Patroni cluster topology.
 type ClusterStatus struct {
 	Members  []Member `json:"members"`

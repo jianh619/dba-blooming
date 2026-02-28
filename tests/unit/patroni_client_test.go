@@ -270,6 +270,57 @@ func TestIsPrimary_ServiceUnavailable(t *testing.T) {
 	}
 }
 
+// TestGetClusterStatus_StringLag verifies that a string-valued lag field (e.g.
+// "unknown") returned by Patroni immediately after a switchover is decoded as 0
+// rather than causing a JSON unmarshal error.
+func TestGetClusterStatus_StringLag(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Raw JSON: leader has no lag field; replica has lag="unknown" (string).
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"members":[
+			{"name":"pg-replica-1","role":"leader","state":"running","host":"10.0.0.2","port":5432,"timeline":2},
+			{"name":"pg-primary","role":"replica","state":"streaming","host":"10.0.0.1","port":5432,"timeline":2,"lag":"unknown"}
+		]}`))
+	}))
+	defer srv.Close()
+
+	client := patroni.NewClient(srv.URL)
+	cs, err := client.GetClusterStatus(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error with string lag: %v", err)
+	}
+	if len(cs.Members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(cs.Members))
+	}
+	// The replica with lag="unknown" must decode to Lag=0.
+	for _, m := range cs.Members {
+		if m.Lag != 0 {
+			t.Errorf("member %q: expected Lag=0, got %d", m.Name, m.Lag)
+		}
+	}
+}
+
+// TestGetClusterStatus_MissingLag verifies that a missing lag field (as Patroni
+// omits it for the leader) decodes to 0 without error.
+func TestGetClusterStatus_MissingLag(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"members":[
+			{"name":"pg-primary","role":"leader","state":"running","host":"10.0.0.1","port":5432,"timeline":1}
+		]}`))
+	}))
+	defer srv.Close()
+
+	client := patroni.NewClient(srv.URL)
+	cs, err := client.GetClusterStatus(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error with missing lag: %v", err)
+	}
+	if cs.Members[0].Lag != 0 {
+		t.Errorf("expected Lag=0 for leader, got %d", cs.Members[0].Lag)
+	}
+}
+
 func TestClusterStatus_PauseField(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/cluster" {
